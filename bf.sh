@@ -2,16 +2,27 @@
 
 GPG_KEY=${1+"--default-key $1"}
 
-gpg $GPG_KEY -n --passphrase NobodyCouldPossiblyHaveThisAsAPassphrase --pinentry-mode loopback --clearsign /dev/null >&/dev/null
-[[ $? == 0 ]] && echo "$0: No passphrase required, or passphrase is already registered in the gpg-agent." && exit -1
+if gpg $GPG_KEY -n --passphrase NobodyCouldPossiblyHaveThisAsAPassphrase --pinentry-mode loopback --clearsign /dev/null >&/dev/null; then
+	echo "$0: No passphrase required, or passphrase is already registered in the gpg-agent."
+ 	exit -1
+fi
 
-while read pass; do
+while IFS= read -r pass; do
 	if [[ $pass ]]; then
-		gpg_test=$(gpg $GPG_KEY -n --passphrase $pass --pinentry-mode loopback --clearsign /dev/null 2>&1)
+		gpg_test=$(gpg "$GPG_KEY" -n --passphrase "$pass" --pinentry-mode loopback --clearsign /dev/null 2>&1)
 		ret=$?
-		[[ $ret == 0 ]] && echo "Found ! Passphrase: $pass" && break
-		[[ ! $gpg_test =~ "Bad passphrase" ]] && echo "$gpg_test" && exit $ret
+		if ((!ret)); then
+  			printf "Found ! Passphrase: %q\\n" "$pass"
+     			break
+		fi
+		if [[ ! $gpg_test =~ "Bad passphrase" ]]; then
+  			printf %s\\n "$gpg_test"
+     			exit $ret
+		fi
 	fi
 done
 
-[[ ! $ret == 0 ]] && echo "Not found :(" && exit -1
+if ((ret)); then
+	echo "Not found :("
+ 	exit -2
+fi
